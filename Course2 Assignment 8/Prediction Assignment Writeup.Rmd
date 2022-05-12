@@ -1,0 +1,85 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Jia Jing Liew"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+```
+
+Loading Data
+···{r}
+setwd("~/Course2 Assignment 8")
+install.packages("caret",dependencies=FALSE)
+require(caret)
+require(dplyr)
+require(data.table)
+require(randomForest)
+require(knitr)
+traininglink<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testinglink<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(traininglink, destfile="pml-training.csv", method = "curl")
+download.file(testinglink, destfile="pml-testing.csv", method = "curl")
+
+atrain<-tbl_df(fread("pml-training.csv",na.strings=c('#DIV/0!', '', 'NA')))
+atest<-tbl_df(fread("pml-testing.csv",na.strings=c('#DIV/0!', '', 'NA')))
+```
+
+Spliting Data In Train And Test Part Which In 70% And 30%, Respectively
+```{r}
+set.seed(1800)
+atrain1 <- createDataPartion(y=atrain$classe, p = 0.7, list = FALSE)
+actual.atraining <- atrain[atrain1,]
+actual.atesting <- atrain[-atrain1,]
+```
+
+Prepare The Model Of The Data
+```{r}
+nzv<-nearZeroVar(actual.atraining)
+actual.atraining <- actual.atraining[,-nzv]
+actual.atesting <- actual.atesting[,-nzv]
+
+mostlyNA <- sapply(actual.atraining,function(x) mean(is.na(x))) > 0.95
+actual.atraining<-actual.atraining[,mostlyNA==FALSE]
+actual.atesting<-actual.atesting[,mostlyNA==FALSE]
+
+actual.atraining <- actual.atraining[,-(1:5)]
+actual.atesting <- actual.atesting[,-(1:5)]
+```
+
+Starting Build Model And Predicting The Results Via The Model
+```{r}
+set.seed(1800)
+ct1<-trainControl(method="cv",number=3)
+modelRF  <- train( classe ~.,data = actual.atraining,method = "rf",trControl = ct1 )
+
+set.seed(1800)
+ct2<-trainControl(method="repeatedcv",number = 5,repeats = 1)
+modelBM <- train( classe ~.,data = actual.atraining,method = "gbm",trControl = ct2,verbose = FALSE)
+
+prediction.test.rf <- predict(modelRF,actual.atesting)
+conf.matrix.rf <- confusionMatrix(prediction.test.rf,as.factor(actual.atesting$classe))
+conf.matrix.rf
+dim(conf.matrix.rf)
+
+
+prediction.test.bm<- predict(modelBM,actual.atesting)
+conf.matrix.bm<-confusionMatrix(prediction.test.rf,as.factor(actual.atesting$classe))
+conf.matrix.bm
+dim(conf.matrix.bm)
+```
+
+Investigating And Ploting Some Diagrams 
+```{r}
+summary(modelRF)
+summary(modelBM)
+
+
+qplot(num_window,roll_belt, data = actual.atraining, col = classe)
+qplot(num_window, pitch_forearm, data = actual.atraining, col = classe)
+qplot(roll_belt, pitch_forearm, data = actual.atraining, col = classe)
+```

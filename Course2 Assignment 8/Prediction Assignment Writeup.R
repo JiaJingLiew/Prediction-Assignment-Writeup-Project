@@ -1,0 +1,59 @@
+setwd("~/Course2 Assignment 8")
+require(caret)
+require(dplyr)
+require(data.table)
+traininglink<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testinglink<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(traininglink, destfile="pml-training.csv", method = "curl")
+download.file(testinglink, destfile="pml-testing.csv", method = "curl")
+
+atrain<-tbl_df(fread("pml-training.csv",na.strings=c('#DIV/0!', '', 'NA')))
+atest<-tbl_df(fread("pml-testing.csv",na.strings=c('#DIV/0!', '', 'NA')))
+
+set.seed(1800)
+atrain1 <- createDataPartition(y=atrain$classe, p = 0.7, list = FALSE)
+actual.atraining <- atrain[atrain1,]
+actual.atesting <- atrain[-atrain1,]
+
+nzv<-nearZeroVar(actual.atraining)
+actual.atraining <- actual.atraining[,-nzv]
+actual.atesting <- actual.atesting[,-nzv]
+
+mostlyNA <- sapply(actual.atraining,function(x) mean(is.na(x))) > 0.95
+actual.atraining<-actual.atraining[,mostlyNA==FALSE]
+actual.atesting<-actual.atesting[,mostlyNA==FALSE]
+
+actual.atraining <- actual.atraining[,-(1:5)]
+actual.atesting <- actual.atesting[,-(1:5)]
+
+set.seed(1800)
+ct1<-trainControl(method="cv",number=3)
+modelRF  <- train( classe ~.,data = actual.atraining,method = "rf",trControl = ct1 )
+
+set.seed(1800)
+ct2<-trainControl(method="repeatedcv",number = 5,repeats = 1)
+modelBM <- train( classe ~.,data = actual.atraining,method = "gbm",trControl = ct2,verbose = FALSE)
+
+prediction.test.rf <- predict(modelRF,actual.atesting)
+conf.matrix.rf <- confusionMatrix(prediction.test.rf,as.factor(actual.atesting$classe))
+conf.matrix.rf
+dim(conf.matrix.rf)
+
+
+prediction.test.bm<- predict(modelBM,actual.atesting)
+conf.matrix.bm<-confusionMatrix(prediction.test.rf,as.factor(actual.atesting$classe))
+conf.matrix.bm
+dim(conf.matrix.bm)
+
+summary(modelRF)
+summary(modelBM)
+
+
+qplot(num_window,roll_belt, data = actual.atraining, col = classe)
+qplot(num_window, pitch_forearm, data = actual.atraining, col = classe)
+qplot(roll_belt, pitch_forearm, data = actual.atraining, col = classe)
+
+prediction.testing.rf <- predict(modelRF,atest)
+print(prediction.testing.rf)
+prediction.testing.bm <- predict(modelBM,atest)
+print(prediction.testing.bm)
